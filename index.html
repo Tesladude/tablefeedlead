@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JSON Viewer & Tools</title>
+    <style>
+      :root {
+        --gap: 12px;
+        --radius: 12px;
+      }
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          Cantarell, "Noto Sans", sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #0b0d10;
+        color: #e9eef3;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 20px;
+      }
+      .app {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: var(--gap);
+        align-items: start;
+      }
+      .card {
+        background: #151a20;
+        border: 1px solid #232a33;
+        border-radius: var(--radius);
+        padding: 14px;
+      }
+      .controls {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr 1fr;
+      }
+      .controls > * {
+        min-width: 0;
+      }
+      input[type="text"],
+      select,
+      button {
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid #2b3541;
+        background: #0f1318;
+        color: #e9eef3;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .list {
+        max-height: 70vh;
+        overflow: auto;
+        margin-top: 12px;
+      }
+      .item {
+        padding: 10px 12px;
+        border: 1px solid #232a33;
+        border-radius: 10px;
+        margin-bottom: 8px;
+        background: #0f1318;
+        display: grid;
+        gap: 6px;
+      }
+      .item.selected {
+        outline: 2px solid #4c8bf5;
+      }
+      .badgen {
+        opacity: 0.8;
+        font-size: 12px;
+      }
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row > * {
+        flex: 1;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #0f1318;
+        border: 1px solid #232a33;
+        border-radius: 10px;
+        padding: 12px;
+        margin: 0;
+        max-height: 70vh;
+        overflow: auto;
+      }
+      .muted {
+        color: #9fb1c4;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Перегляд та маніпуляції з <code>data.json</code></h1>
+
+    <div class="app">
+      <!-- Ліва панель: фільтр, сортування, список -->
+      <div class="card">
+        <div class="stack">
+          <input id="q" type="text" placeholder="Пошук " />
+          <div class="controls">
+            <select id="sortField" title="Поле для сортування">
+              <option value="name">name</option>
+              <option value="price">price</option>
+              <option value="id">id</option>
+            </select>
+            <select id="sortDir" title="Порядок">
+              <option value="asc">↑ зростання</option>
+              <option value="desc">↓ спадання</option>
+            </select>
+          </div>
+          <div class="row">
+            <button id="btnAdd">+ Додати демо-обʼєкт</button>
+            <button id="btnReset" title="Повернути оригінальні дані">
+              ↺ Скинути
+            </button>
+          </div>
+          <div class="row">
+            <button id="btnUp10" disabled>↑ Ціна +10% (виділене)</button>
+            <button id="btnDelete" disabled>🗑 Видалити (виділене)</button>
+          </div>
+        </div>
+
+        <div class="list" id="list"></div>
+      </div>
+
+      <!-- Права панель: деталі виділеного елемента / сировий JSON -->
+      <div class="card stack">
+        <div>
+          <div class="row">
+            <button id="btnToggleRaw">Показати сирий JSON</button>
+            <button id="btnCopy" title="Скопіювати поточні дані в буфер">
+              Копіювати всі дані
+            </button>
+          </div>
+        </div>
+        <div id="detailsWrap" class="stack"></div>
+        <pre id="raw" hidden></pre>
+                <table>
+        <thead>
+    <tr>
+      <th scope="col">chatNumber</th>
+      <th scope="col">depositAmount</th>
+      <th scope="col">depositDate</th>
+      <th scope="col">depositType</th>
+      <th scope="col">leadID</th>
+      <th scope="col">workerID</th>
+    </tr>
+        </thead>
+<tbody id="tableBody">
+  </tbody>
+        </table>
+      </div>
+      </div>
+
+    <div
+      id="drop-area"
+      style="border: 2px dashed #ccc; padding: 20px; text-align: center"
+    >
+      Drag and drop JSON files here
+    </div>
+    <pre id="output"></pre>
+
+    <script>
+
+    let resultfile;
+      const dropArea = document.getElementById('drop-area');
+const output = document.getElementById('output');
+
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, preventDefaults, false);
+});
+
+function preventDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+// Highlight drop area when item is dragged over it
+['dragenter', 'dragover'].forEach(eventName => {
+  dropArea.addEventListener(eventName, highlight, false);
+});
+
+['dragleave', 'drop'].forEach(eventName => {
+  dropArea.addEventListener(eventName, unhighlight, false);
+});
+
+function highlight(e) {
+  dropArea.classList.add('highlight');
+}
+
+function unhighlight(e) {
+  dropArea.classList.remove('highlight');
+}
+
+// Handle dropped files
+dropArea.addEventListener('drop', handleDrop, false);
+
+function handleDrop(e) {
+  const dt = e.dataTransfer;
+  const files = dt.files;
+
+  handleFiles(files);
+}
+
+function handleFiles(files) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.type === 'application/json') { // Ensure it's a JSON file
+      const reader = new FileReader();
+
+      reader.onload = function(event) {
+        try {
+          const jsonContent = JSON.parse(event.target.result);
+          // output.textContent = JSON.stringify(jsonContent, null, 2); // Display formatted JSON
+          // You can now work with the 'jsonContent' object
+          console.log('Parsed JSON:', jsonContent);
+          // resultfile = jsonContent
+          render(jsonContent);
+        } catch (error) {
+          output.textContent = 'Error parsing JSON: ' + error.message;
+          console.error('Error parsing JSON:', error);
+        }
+      };
+      // resultfile = reader.readAsText(file).messages;
+      
+      reader.readAsText(file);
+    } else {
+      output.textContent = 'Please drop a valid JSON file.';
+    }
+  }
+}
+
+      function render(resultfile) {
+      console.log(resultfile)
+        let resultData = [];
+        // let resultItem = {};
+        let listOfNotifications = resultfile.messages.filter((item) => {
+          if (item.from == "Crm tg" && item.text.length >= 13) return true;
+        });
+
+        let listOfDeposits = resultfile.messages.filter((item) => {
+          if (item.from == "aza") return true;
+        });
+        console.log(listOfNotifications);
+        console.log(listOfDeposits);
+        listOfNotifications.forEach((element) => {
+          let resultItem = {};    
+          let depositObject = listOfDeposits.find((dep) => dep.reply_to_message_id == element.id);
+
+          resultItem.depositType = element.text[0].text.split(" ")[0];
+          resultItem.chatNumber = element.text[0].text.split(" ")[3];
+          resultItem.workerID = element.text[8].text;
+          resultItem.leadID = element.text[12].text;
+          resultItem.depositDate = element.date.split("T")[0];
+          resultItem.depositAmount = depositObject.text.split("+")[1] + ' 000';
+          resultData.push(resultItem)
+
+      let tbinnerHTML = `    
+        <tr>
+      <th scope="row">${resultItem.chatNumber}</th>
+      <th scope="row">${resultItem.depositAmount}</th>
+      <th scope="row">${resultItem.depositDate}</th>
+      <th scope="row">${resultItem.depositType}</th>
+      <th scope="row">${resultItem.leadID}</th>
+      <th scope="row">${resultItem.workerID}</th>
+    </tr>`
+            console.log(tbinnerHTML)
+document.getElementById('tableBody').innerHTML += tbinnerHTML
+        });
+
+
+        console.log(resultData);
+      }
+      // Старт
+      // loadData();
+    </script>
+  </body>
+</html>
