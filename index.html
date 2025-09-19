@@ -249,7 +249,6 @@ function handleFiles(files) {
 }
 
       function render(resultfile) {
-      console.log(resultfile)
         let resultData = [];
         // let resultItem = {};
         let listOfNotifications = resultfile.messages.filter((item) => {
@@ -259,18 +258,17 @@ function handleFiles(files) {
         let listOfDeposits = resultfile.messages.filter((item) => {
           if (item.from == "aza") return true;
         });
-        console.log(listOfNotifications);
-        console.log(listOfDeposits);
+
         listOfNotifications.forEach((element) => {
           let resultItem = {};    
           let depositObject = listOfDeposits.find((dep) => dep.reply_to_message_id == element.id);
 
-          resultItem.depositType = element.text[0].text.split(" ")[0];
+          resultItem.depositType = element.text[0].text.split("")[2] =="Ф"? "FD": "RD";
           resultItem.chatNumber = element.text[0].text.split(" ")[3];
           resultItem.workerID = element.text[8].text;
           resultItem.leadID = element.text[12].text;
           resultItem.depositDate = element.date.split("T")[0];
-          resultItem.depositAmount = depositObject.text.split("+")[1] + ' 000';
+          resultItem.depositAmount =depositObject.text.split("+")[1] == undefined ? 'not a dep' :depositObject.text.split("+")[1] + ' 000';
           resultData.push(resultItem)
 
       let tbinnerHTML = `    
@@ -282,13 +280,41 @@ function handleFiles(files) {
       <th scope="row">${resultItem.leadID}</th>
       <th scope="row">${resultItem.workerID}</th>
     </tr>`
-            console.log(tbinnerHTML)
+      // console.log(element.text[0].text.split("")[1] =="Ф")
+
 document.getElementById('tableBody').innerHTML += tbinnerHTML
         });
 
+let csv = convertToCSV(resultData)
+      console.log(csv)
 
-        console.log(resultData);
+    CSVFile = new Blob([csv], { type: "text/csv" });
+
+    // Create to temporary link to initiate
+    // download process
+    let temp_link = document.createElement('a');
+
+    // Download csv file
+    temp_link.download = "GfG.csv";
+    let url = window.URL.createObjectURL(CSVFile);
+    temp_link.href = url;
+
+    // This link should not be displayed
+    temp_link.style.display = "none";
+    document.body.appendChild(temp_link);
+
+    // Automatically click the link to trigger download 
+    temp_link.click();
+    document.body.removeChild(temp_link);
+
       }
+
+    function convertToCSV(data) {
+        const headers = Object.keys(data[0]).join(',');
+        const rows = data.map(row => Object.values(row).join(','));
+        return [headers, ...rows].join('\n');
+    }
+
       // Старт
       // loadData();
     </script>
